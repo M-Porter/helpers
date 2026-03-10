@@ -5,7 +5,6 @@ from argparse import ArgumentParser, Namespace
 from subprocess import check_output, CalledProcessError
 import sys
 import re
-from urllib.parse import urljoin
 
 class Colors:
     CLEAR = "\033[0m"
