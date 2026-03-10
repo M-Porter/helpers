@@ -1,0 +1,112 @@
+#!/usr/bin/env -S mise x python@3.14 -- python
+
+from argparse import ArgumentParser, Namespace
+from subprocess import check_output, CalledProcessError
+import sys
+import re
+from urllib.parse import urljoin
+
+class Colors:
+    CLEAR = "\033[0m"
+    RED = "\033[31m"
+    GREEN = "\033[32m"
+    BLUE = "\033[34m"
+    BOLD_RED = "\033[1;31m"
+    BOLD_GREEN = "\033[1;32m"
+    BOLD_BLUE = "\033[1;34m"
+
+
+class GitM:
+    def __init__(self, args: Namespace):
+        self.args = args
+
+    def push(self):
+        branch = self._get_current_branch()
+        remote = self._get_remote_for_branch(branch)
+        self._run_command(['git', 'push', '-u', remote, branch])
+
+    def pull(self):
+        branch = self._get_current_branch()
+        remote = self._get_remote_for_branch(branch)
+        self._run_command(['git', 'pull', remote, branch])
+
+    def compare(self):
+        branch = self._get_current_branch()
+        remote = self._get_remote_for_branch(branch)
+        url = self._get_url_for_remote(remote)
+        base_branch = self._default_branch_name(remote)
+        compare_url = f'{url}/compare/{base_branch}...{branch}'
+        self._run_command(['open', compare_url])
+
+    def open(self):
+        branch = self._get_current_branch()
+        remote = self._get_remote_for_branch(branch)
+        url = self._get_url_for_remote(remote)
+        branch_url = f'{url}/tree/{branch}'
+        self._run_command(['open', branch_url])
+
+    def _get_remote_for_branch(self, branch: str = 'HEAD') -> str:
+        try:
+            out = check_output(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', f'{branch}@{{u}}'], stderr=-1)
+            return out.decode().strip().split("/")[0]
+        except CalledProcessError:
+            return 'origin'
+
+    def _get_current_branch(self) -> str:
+        try:
+            out = check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], stderr=-1)
+            return out.decode().strip()
+        except CalledProcessError as err:
+            self._print_error(err.stderr.decode())
+
+    def _get_url_for_remote(self, remote: str) -> str:
+        try:
+            out = check_output(['git', 'remote', 'get-url', remote], stderr=-1)
+        except CalledProcessError as err:
+            self._print_error(err.stderr.decode())
+
+        # url may be in the git@ or https:// so we have to handle both
+        url = re.sub(r'^git\@', 'https://', out.decode().strip())
+        url = re.sub(r'\.git$', '', url)
+        url = re.sub(r':(?!\/\/)', '/', url)
+
+        return url
+
+    def _default_branch_name(self, remote: str) -> str:
+        try:
+            out = check_output(["git", "remote", "show", remote], stderr=-1)
+            for line in out.decode().splitlines():
+                if 'HEAD branch' in line:
+                    return line.split(':')[1].strip()
+        except CalledProcessError as err:
+            self._print_error(err.stderr.decode())
+
+    def _run_command(self, command: list[str]):
+        print(f'{Colors.BOLD_GREEN}=> {' '.join(command)}{Colors.CLEAR}\n')
+        check_output(command)
+
+    def _print_error(self, err: str):
+        print(f'{Colors.RED}{err}{Colors.CLEAR}')
+        exit(1)
+
+
+if __name__ == '__main__':
+    parser = ArgumentParser(
+        prog='git-m',
+        description='[git] helpers for [m]e'
+    )
+    subparsers = parser.add_subparsers(dest='subcommand')
+    push_parser = subparsers.add_parser('push')
+    pull_parser = subparsers.add_parser('pull')
+    compare_parser = subparsers.add_parser('compare')
+    open_parser = subparsers.add_parser('open')
+
+    args = parser.parse_args()
+
+    subcommand = args.subcommand or ""
+    cmd = GitM(args)
+    if hasattr(cmd, subcommand) and callable(func := getattr(cmd, subcommand)):
+        func()
+    else:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
