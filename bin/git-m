@@ -34,8 +34,10 @@ class GitM:
         branch = self._get_current_branch()
         remote = self._get_remote_for_branch(branch)
         url = self._get_url_for_remote(remote)
-        base_branch = self._default_branch_name(remote)
-        compare_url = f'{url}/compare/{base_branch}...{branch}'
+        if self.args.base:
+            compare_url = f'{url}/compare/{args.base}...{branch}'
+        else:
+            compare_url = f'{url}/compare/{branch}'
         self._run_command(['open', compare_url])
 
     def open(self):
@@ -72,15 +74,6 @@ class GitM:
 
         return url
 
-    def _default_branch_name(self, remote: str) -> str:
-        try:
-            out = check_output(["git", "remote", "show", remote], stderr=-1)
-            for line in out.decode().splitlines():
-                if 'HEAD branch' in line:
-                    return line.split(':')[1].strip()
-        except CalledProcessError as err:
-            self._print_error(err.stderr.decode())
-
     def _run_command(self, command: list[str]):
         print(f'{Colors.BOLD_GREEN}=> {' '.join(command)}{Colors.CLEAR}\n')
         check_output(command)
@@ -95,10 +88,16 @@ if __name__ == '__main__':
         prog='git-m',
         description='[git] helpers for [m]e'
     )
+
     subparsers = parser.add_subparsers(dest='subcommand')
+
     push_parser = subparsers.add_parser('push')
+
     pull_parser = subparsers.add_parser('pull')
+
     compare_parser = subparsers.add_parser('compare')
+    compare_parser.add_argument('base', nargs='?', type=str, default=None, help='The branch to compare against.')
+
     open_parser = subparsers.add_parser('open')
 
     args = parser.parse_args()
