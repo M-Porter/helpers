@@ -25,6 +25,11 @@ class GitM:
         remote = self._get_remote_for_branch(branch)
         self._run_command(['git', 'push', '-u', remote, branch])
 
+    def pushf(self):
+        branch = self._get_current_branch()
+        remote = self._get_remote_for_branch(branch)
+        self._run_command(['git', 'push', '--force-with-lease', '-u', remote, branch])
+
     def pull(self):
         branch = self._get_current_branch()
         remote = self._get_remote_for_branch(branch)
@@ -67,7 +72,8 @@ class GitM:
         except CalledProcessError as err:
             self._print_error(err.stderr.decode())
 
-        # url may be in the git@ or https:// so we have to handle both
+        # url may be in the git@, ssh://, or http:// so we have to handle all
+        url = re.sub(r'^ssh:\/\/', '', out.decode().strip())
         url = re.sub(r'^git\@', 'https://', out.decode().strip())
         url = re.sub(r'\.git$', '', url)
         url = re.sub(r':(?!\/\/)', '/', url)
@@ -75,7 +81,7 @@ class GitM:
         return url
 
     def _run_command(self, command: list[str]):
-        print(f'{Colors.BOLD_GREEN}=> {' '.join(command)}{Colors.CLEAR}\n')
+        print(f'{Colors.BOLD_GREEN}=> {" ".join(command)}{Colors.CLEAR}\n')
         check_output(command)
 
     def _print_error(self, err: str):
@@ -91,14 +97,16 @@ if __name__ == '__main__':
 
     subparsers = parser.add_subparsers(dest='subcommand')
 
-    push_parser = subparsers.add_parser('push')
+    push_parser = subparsers.add_parser('push', help='Push the current branch to the remote.')
 
-    pull_parser = subparsers.add_parser('pull')
+    pushf_parser = subparsers.add_parser('pushf', help='Force push with lease the current branch to the remote.')
 
-    compare_parser = subparsers.add_parser('compare')
+    pull_parser = subparsers.add_parser('pull', help='Pull the current branch from the remote.')
+
+    compare_parser = subparsers.add_parser('compare', help='Compare the current branch against another branch.')
     compare_parser.add_argument('base', nargs='?', type=str, default=None, help='The branch to compare against.')
 
-    open_parser = subparsers.add_parser('open')
+    open_parser = subparsers.add_parser('open', help='Open the current branch in the browser.')
 
     args = parser.parse_args()
 
